@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ace-royale-engine"
+version = "0.1.0"
+description = "Casino game engine: blackjack, baccarat, Three Card Poker and no-limit Hold'em with Monte Carlo poker bots."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Bruno González" }]
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["aceroyale*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
