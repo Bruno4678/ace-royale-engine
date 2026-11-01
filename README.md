@@ -15,7 +15,7 @@ computes, so it can be tested exhaustively and simulated in bulk.
 | `aceroyale.blackjack` | Hand values (soft/hard), naturals, dealer rule (stands on 17), splits, doubles, insurance, settlement |
 | `aceroyale.baccarat` | Punto banco with the full third-card tableau, 8-deck shoe, 5% banker commission, 8:1 tie |
 | `aceroyale.three_card` | Three Card Poker ranking (straight beats flush), dealer qualifies with queen high, Ante, Play, Pair Plus and Ante bonus |
-| `aceroyale.poker` | No-limit Texas Hold'em: 5- and 7-card evaluator, a single-hand engine with side pots and min-raise rules, and Monte Carlo bots |
+| `aceroyale.poker` | No-limit Texas Hold'em and Pot-Limit Omaha: hand evaluators, a single-hand engine with side pots, min-raise and short all-in rules, and Monte Carlo bots for both games |
 
 Every game uses the same card encoding: an int `XYY`, where `X` is the suit
 (1-4) and `YY` the rank (1 = ace ... 13 = king). `101` is an ace, `413` a king.
@@ -23,7 +23,7 @@ Every game uses the same card encoding: an int `XYY`, where `X` is the suit
 ## Poker bots
 
 Bots are a separate subsystem from the engine. The engine never asks a bot what
-happens next: it hands the bot a read-only view of the table (its own two
+happens next: it hands the bot a read-only view of the table (its own hole
 cards, the board, pot, stacks, legal actions) and the bot answers with an
 *intent*, such as "raise to 40". The engine then validates that intent with the
 same rules it applies to a human. A buggy bot can play badly, but it cannot
@@ -39,10 +39,10 @@ equity against pot odds.
 
 | Level | Display name | Monte Carlo samples |
 |---|---|---|
-| `beginner` | Rookie | few, noisy estimates |
-| `casual` | Casual | more |
-| `advanced` | Sharp | more still |
-| `expert` | Shark | many, accurate estimates |
+| `beginner` | Rookie | 40 |
+| `casual` | Casual | 120 |
+| `advanced` | Sharp | 320 |
+| `expert` | Shark | 650 |
 
 The tests pit each level against the one below over hundreds of seeded hands
 and check that the stronger level comes out ahead.
@@ -61,6 +61,27 @@ against the exact category frequencies of all 2,598,960 five-card hands.
 | `score_7` (fast path) | ~252,000 |
 
 Measured on 20,000 seeded random hands; both give identical results.
+
+## Pot-Limit Omaha
+
+`OmahaHand` reuses the Hold'em engine (blinds, turns, side pots, the short
+all-in rule) and changes only what makes Omaha a different game:
+
+- **Four hole cards**, and the showdown hand uses **exactly two** of them plus
+  three from the board. Four hearts on the board and one heart in hand is no
+  flush; four aces on the board are worth only three. `best_omaha_hand` tries
+  all 6 x 10 = 60 legal combinations and is checked against brute force.
+- **Pot-limit betting**: the biggest raise is to call and then raise by the
+  whole pot, i.e. `current bet + pot + amount to call`. With blinds 5/10 the
+  first player in can raise to 35; with no bet yet, the most anyone can bet is
+  the pot.
+
+The same bots play it: `estimate_equity` reads the game from the number of hole
+cards and deals four cards to each simulated opponent. AA-KK double-suited
+comes out at about 0.69 equity heads-up, against roughly 0.85 for AA in
+Hold'em, which is why Omaha is a game of closer equities. Each Omaha decision
+costs about 110 ms against 5 ms in Hold'em, which is what the planned Rust
+evaluator is for.
 
 ## Quick start
 
@@ -85,6 +106,13 @@ while not hand.finished:
 print(hand.result["winners"], [s.chips for s in seats])
 ```
 
+Pot-Limit Omaha is the same loop with `OmahaHand`:
+
+```python
+from aceroyale.poker import OmahaHand
+hand = OmahaHand(seats, button=0, small_blind=5, big_blind=10)
+```
+
 A baccarat coup:
 
 ```python
@@ -97,11 +125,12 @@ print(settle({"player": 0, "banker": 100, "tie": 0}, hand["winner"]))
 
 ## Tests
 
-47 tests, about 40 seconds, all seeded so they are deterministic. Highlights:
+58 tests, about 45 seconds, all seeded so they are deterministic. Highlights:
 
 - Exact enumeration of every five-card hand against the known category counts
 - Fast evaluator vs. reference evaluator on random and hand-picked tricky hands
 - Side pots, split pots (odd chip), short all-ins, chip conservation over hundreds of random hands
+- Omaha: the exactly-two rule, pot-limit amounts, a rigged showdown that Hold'em rules would get wrong, bots playing legally
 - The engine rejects every illegal action (wrong turn, under-minimum raise, over-stack bet...)
 - Bots only ever see their own cards, cannot break the rules, and stronger levels beat weaker ones
 - Blackjack splits, doubles, insurance and naturals; baccarat tableau; Three Card Poker payouts
@@ -109,7 +138,6 @@ print(settle({"player": 0, "banker": 100, "tie": 0}, hand["winner"]))
 ## Roadmap
 
 - Fast hand evaluator in Rust (bitmasks + lookup tables), benchmarked against `score_7`
-- Omaha (four hole cards, must use exactly two)
 - Poker Spins (three-player sit & go with a random prize multiplier) and tournaments (blind schedule, payouts)
 - Blackjack and baccarat side bets
 - Quant simulations: house edge of every game and side bet, blackjack basic strategy,

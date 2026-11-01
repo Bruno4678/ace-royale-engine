@@ -1,4 +1,4 @@
-"""No-limit Texas Hold'em: hand evaluator, single-hand engine and bots.
+"""No-limit Texas Hold'em and Pot-Limit Omaha: evaluators, single-hand engines and bots.
 
 Typical loop::
 
@@ -18,8 +18,9 @@ from .hands import (
     STRAIGHT_FLUSH, FOUR_OF_A_KIND, FULL_HOUSE, FLUSH, STRAIGHT,
     THREE_OF_A_KIND, TWO_PAIR, PAIR, HIGH_CARD, CATEGORY_NAMES, RANK_NAMES,
     rank, suit, full_deck, evaluate_5, score_7, best_hand, describe,
+    best_omaha_hand, score_omaha,
 )
-from .engine import Seat, Hand
+from .engine import Seat, Hand, OmahaHand
 from .bots import (
     Personality, PERSONALITIES, LEVEL_ORDER, BotView, BotStrategy,
     estimate_equity, create_strategy, view_for, available_names,
@@ -29,8 +30,8 @@ __all__ = [
     "STRAIGHT_FLUSH", "FOUR_OF_A_KIND", "FULL_HOUSE", "FLUSH", "STRAIGHT",
     "THREE_OF_A_KIND", "TWO_PAIR", "PAIR", "HIGH_CARD", "CATEGORY_NAMES",
     "RANK_NAMES", "rank", "suit", "full_deck", "evaluate_5", "score_7",
-    "best_hand", "describe",
-    "Seat", "Hand",
+    "best_hand", "describe", "best_omaha_hand", "score_omaha",
+    "Seat", "Hand", "OmahaHand",
     "Personality", "PERSONALITIES", "LEVEL_ORDER", "BotView", "BotStrategy",
     "estimate_equity", "create_strategy", "view_for", "available_names",
 ]

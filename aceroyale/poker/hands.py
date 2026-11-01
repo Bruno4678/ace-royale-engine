@@ -220,6 +220,42 @@ def best_hand(cards)->tuple:
     return (best_score, best_cards)
 
 
+def best_omaha_hand(hole, board)->tuple:
+    """
+    Best Omaha hand: EXACTLY two of the hole cards and three of the board.
+
+    This is the rule that catches Hold'em players out. With four hearts on
+    the board and a single heart in hand there is no flush, and four aces on
+    the board are worth only three of them. So the 7-card shortcut cannot be
+    reused: every 2-from-hole x 3-from-board combination is tried, 6 x 10 = 60
+    with four hole cards and a full board.
+
+    :param hole: the hole cards (4 in Omaha)
+    :param board: 3 to 5 community cards
+    :return: (score, tuple of the 5 chosen cards)
+    """
+    hole, board = tuple(hole), tuple(board)
+    if len(hole) < 2 or len(board) < 3:
+        raise ValueError("at least 2 hole cards and 3 board cards are needed")
+
+    best_score = None
+    best_cards = None
+    threes = list(combinations(board, 3))
+    for two in combinations(hole, 2):
+        for three in threes:
+            combo = two + three
+            s = evaluate_5(combo)
+            if best_score is None or s > best_score:
+                best_score = s
+                best_cards = combo
+    return (best_score, best_cards)
+
+
+def score_omaha(hole, board)->tuple:
+    """Score only of best_omaha_hand, for the bots' simulations."""
+    return best_omaha_hand(hole, board)[0]
+
+
 def describe(score:tuple)->str:
     """Short text for a score, to show at showdown."""
     cat = score[0]

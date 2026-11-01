@@ -20,7 +20,7 @@ bluffs.
 import logging
 from random import Random
 
-from .hands import score_7, full_deck
+from .hands import score_7, score_omaha, full_deck
 
 log = logging.getLogger("aceroyale.poker.bots")
 
@@ -82,7 +82,7 @@ LEVEL_ORDER = ("beginner", "casual", "advanced", "expert")
 
 class BotView:
     """
-    What a bot can see. Deliberately poor: its two cards, the board and the
+    What a bot can see. Deliberately poor: its own cards, the board and the
     public numbers. Nothing about the other players' cards.
     """
 
@@ -131,11 +131,22 @@ def estimate_equity(cards, board, opponents, samples, rng):
     are completed, many times, counting how often we win. Ties count as a
     fraction, which is how the pot is really split.
 
+    The game is read from the number of hole cards: two is Hold'em (any five
+    of seven), four is Omaha (exactly two from the hand, and the opponents
+    are dealt four each too).
+
     :param opponents: how many are still in the hand besides ourselves
     :param samples: number of simulations (more means a better estimate)
     """
     if opponents <= 0:
         return 1.0
+
+    hole = len(cards)
+    if hole == 2:
+        def score(own, table):
+            return score_7(own + table)
+    else:
+        score = score_omaha
 
     known = set(cards) | set(board)
     rest = [c for c in full_deck() if c not in known]
@@ -150,12 +161,12 @@ def estimate_equity(cards, board, opponents, samples, rng):
             table += rest[i:i + missing]
             i += missing
 
-        mine = score_7(list(cards) + table)
+        mine = score(list(cards), table)
         best_opponent = None
         for _ in range(opponents):
-            theirs = rest[i:i + 2]
-            i += 2
-            s = score_7(theirs + table)
+            theirs = rest[i:i + hole]
+            i += hole
+            s = score(theirs, table)
             if best_opponent is None or s > best_opponent:
                 best_opponent = s
 

@@ -1,4 +1,4 @@
-"""Engine for one hand of no-limit Texas Hold'em.
+"""Engine for one hand of no-limit Texas Hold'em, and of Pot-Limit Omaha.
 
 This is pure Python: it knows nothing about networking, threads or storage.
 A `Hand` holds the state of ONE hand from the blinds to the distribution of
@@ -15,11 +15,14 @@ Rules implemented:
     everyone below the new bet must still call the difference or fold
   - side pots when someone is short-stacked
   - if only one player has not folded, they win without showing cards
+
+`OmahaHand` reuses all of it and changes only three things: four hole cards,
+the hand must use exactly two of them, and bets are capped at the pot.
 """
 
 import random
 
-from .hands import best_hand, full_deck, describe
+from .hands import best_hand, best_omaha_hand, full_deck, describe
 
 
 class Seat:
@@ -31,7 +34,7 @@ class Seat:
         self.is_bot = is_bot
         self.chips = int(chips)
 
-        self.cards = []             # the two hole cards
+        self.cards = []             # the hole cards (2 in Hold'em, 4 in Omaha)
         self.street_bet = 0         # put in on the current street
         self.total_contributed = 0  # put in over the whole hand
         self.state = "active"       # active | folded | all_in
@@ -51,6 +54,7 @@ class Hand:
     """A complete hand. Create it, keep sending it actions, and it finishes."""
 
     STREETS = ("preflop", "flop", "turn", "river")
+    HOLE_CARDS = 2
 
     def __init__(self, seats, button:int, small_blind:int, big_blind:int,
                  deck:list=None):
@@ -86,7 +90,7 @@ class Hand:
     def _deal_hole_cards(self):
         for s in self.seats:
             if s.chips > 0:
-                s.cards = [self._draw(), self._draw()]
+                s.cards = [self._draw() for _ in range(self.HOLE_CARDS)]
 
     def _seats_with_chips(self):
         return [i for i, s in enumerate(self.seats) if s.chips > 0]
@@ -188,16 +192,24 @@ class Hand:
         # Bet or raise: you need more chips than it costs to call, and the
         # raising must not have been closed to you by a short all-in.
         if s.chips > to_call and i not in self.raise_closed:
+            maximum = self._max_total(s)
             if self.current_bet == 0:
                 minimum = min(self.bb, s.chips)
-                options["bet"] = {"min": minimum,
-                                  "max": s.chips}
+                options["bet"] = {"min": min(minimum, maximum),
+                                  "max": maximum}
             else:
                 # the total the bet would be raised to, not the increment
                 minimum = self.current_bet + self.min_raise
-                maximum = s.street_bet + s.chips
                 options["raise"] = {"min": min(minimum, maximum), "max": maximum}
         return options
+
+    def _max_total(self, s)->int:
+        """Most a seat can bet or raise to on this street. No limit: all of it."""
+        return s.street_bet + s.chips
+
+    def _best(self, s)->tuple:
+        """(score, five cards) of a seat at showdown. Hold'em: any 5 of 7."""
+        return best_hand(list(s.cards) + list(self.board))
 
     def act(self, i:int, action:str, amount:int=0):
         """
@@ -385,7 +397,7 @@ class Hand:
         scores = {}
         for i, s in enumerate(self.seats):
             if s.in_hand:
-                score, five = best_hand(list(s.cards) + list(self.board))
+                score, five = self._best(s)
                 scores[i] = {"score": score, "cards": list(five),
                              "text": describe(score)}
 
@@ -422,3 +434,34 @@ class Hand:
         self.street = "showdown"
         self.turn = None
         self.finished = True
+
+
+class OmahaHand(Hand):
+    """
+    One hand of Pot-Limit Omaha (high only).
+
+    Same flow, blinds, side pots and short all-in rule as Hold'em. Only:
+      - four hole cards each
+      - the showdown hand uses exactly two of them plus three of the board
+      - nobody can bet or raise more than the pot
+    """
+
+    HOLE_CARDS = 4
+
+    def _max_total(self, s)->int:
+        """
+        Pot limit: the biggest raise is to call first and then raise by the
+        whole pot as it would be after that call. As a total for the street:
+
+            current bet + (pot on the table + what this seat must call)
+
+        With blinds 5/10 the first player in can raise to 10 + (15 + 10) = 35,
+        the classic "pot" of three and a half big blinds. With no bet yet the
+        formula gives exactly the pot. Never more than the seat's own chips.
+        """
+        to_call = max(0, self.current_bet - s.street_bet)
+        pot_limit = self.current_bet + self.pot + to_call
+        return min(pot_limit, s.street_bet + s.chips)
+
+    def _best(self, s)->tuple:
+        return best_omaha_hand(s.cards, self.board)
