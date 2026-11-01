@@ -11,7 +11,8 @@ Rules implemented:
   - heads-up (2 players): the button is the small blind and acts first
     before the flop, and last after it
   - minimum raise = size of the last raise (standard no-limit rule)
-  - an all-in below the minimum raise does NOT reopen the betting
+  - an all-in below the minimum raise does NOT reopen the raising, but
+    everyone below the new bet must still call the difference or fold
   - side pots when someone is short-stacked
   - if only one player has not folded, they win without showing cards
 """
@@ -69,6 +70,7 @@ class Hand:
         self.min_raise = self.bb
         self.turn = None
         self.to_act = set()
+        self.raise_closed = set()   # may only call or fold (after a short all-in)
         self.finished = False
         self.result = None          # filled in when the hand ends
         self.history = []
@@ -183,8 +185,9 @@ class Hand:
         else:
             options["call"] = {"amount": min(to_call, s.chips)}
 
-        # Bet or raise: you need more chips than it costs to call.
-        if s.chips > to_call:
+        # Bet or raise: you need more chips than it costs to call, and the
+        # raising must not have been closed to you by a short all-in.
+        if s.chips > to_call and i not in self.raise_closed:
             if self.current_bet == 0:
                 minimum = min(self.bb, s.chips)
                 options["bet"] = {"min": minimum,
@@ -241,11 +244,20 @@ class Hand:
             self.current_bet = max(self.current_bet, new)
             if reopens:
                 self.min_raise = increment
+                self.raise_closed = set()
                 self.to_act = {
                     j for j, o in enumerate(self.seats)
                     if o.can_act and j != i
                 }
             else:
+                # They still owe the difference, though: everyone below the
+                # new bar must call it or fold. Whoever had already acted
+                # may only call or fold; whoever had not, may still raise.
+                for j, o in enumerate(self.seats):
+                    if j != i and o.can_act and o.street_bet < self.current_bet:
+                        if j not in self.to_act:
+                            self.raise_closed.add(j)
+                        self.to_act.add(j)
                 self.to_act.discard(i)
 
             s.last_action = ("All-in" if s.state == "all_in"
@@ -286,6 +298,7 @@ class Hand:
                 s.last_action = None
         self.current_bet = 0
         self.min_raise = self.bb
+        self.raise_closed = set()
 
         if self.street == "river":
             self._showdown()

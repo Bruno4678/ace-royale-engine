@@ -228,3 +228,58 @@ def test_no_duplicate_cards_dealt():
             dealt += s.cards
         assert len(h.board) == 5
         assert len(dealt) == len(set(dealt)), f"duplicated card in hand {n}: {dealt}"
+
+
+# ---------------------------------------------------------------- short all-in
+
+def test_short_all_in_must_be_called():
+    # Blinds 5/10, button P0 -> P1 small blind, P2 big blind with 45 chips.
+    # P0 raises to 30, P1 calls, P2 goes all-in to 45: only 15 more, less
+    # than the minimum raise (20). The betting is NOT reopened, but P0 and P1
+    # still owe 15: they must call or fold before the flop comes.
+    h = Hand(seats(1000, 1000, 45), button=0, small_blind=5, big_blind=10,
+             deck=list(full_deck()))
+    h.act(0, "raise", 30)
+    h.act(1, "call")
+    h.act(2, "raise", 45)
+    assert h.street == "preflop", "the street closed with 15 chips still owed"
+    assert h.turn == 0
+    options = h.valid_actions()
+    assert options.get("call") == {"amount": 15}, options
+    assert "raise" not in options, "a short all-in must not reopen the raising"
+    h.act(0, "call")
+    assert h.turn == 1 and "raise" not in h.valid_actions()
+    h.act(1, "call")
+    assert h.street == "flop"
+    assert [s.total_contributed for s in h.seats] == [45, 45, 45]
+
+
+def test_short_all_in_does_not_close_raising_for_those_yet_to_act():
+    # P0 raises to 30, P1 (small blind, 45 chips) goes all-in short to 45.
+    # P2 has not acted since the raise, so P2 may still re-raise; P0 then
+    # faces a full raise and may raise again too.
+    h = Hand(seats(1000, 45, 1000), button=0, small_blind=5, big_blind=10,
+             deck=list(full_deck()))
+    h.act(0, "raise", 30)
+    h.act(1, "raise", 45)
+    assert h.turn == 2
+    assert "raise" in h.valid_actions(), "P2 had not acted yet: raising stays open"
+    h.act(2, "raise", 100)
+    assert h.turn == 0 and "raise" in h.valid_actions()
+
+
+def test_short_all_in_caller_can_only_call_or_fold():
+    # P0 raises to 30, P1 calls, P2 goes all-in short: P0 may not re-raise,
+    # only fold or call. P0 folds, P1 calls; with P2 all-in nobody else can
+    # bet, so the board is run out straight to the showdown.
+    h = Hand(seats(1000, 1000, 45), button=0, small_blind=5, big_blind=10,
+             deck=list(full_deck()))
+    h.act(0, "raise", 30)
+    h.act(1, "call")
+    h.act(2, "raise", 45)
+    expect_error(h.act, 0, "raise", 100)
+    h.act(0, "fold")
+    h.act(1, "call")
+    assert h.finished and len(h.board) == 5
+    assert [s.total_contributed for s in h.seats] == [30, 45, 45]
+    assert sum(s.chips for s in h.seats) == 1000 + 1000 + 45

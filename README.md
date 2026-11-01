@@ -97,11 +97,11 @@ print(settle({"player": 0, "banker": 100, "tie": 0}, hand["winner"]))
 
 ## Tests
 
-44 tests, about 40 seconds, all seeded so they are deterministic. Highlights:
+47 tests, about 40 seconds, all seeded so they are deterministic. Highlights:
 
 - Exact enumeration of every five-card hand against the known category counts
 - Fast evaluator vs. reference evaluator on random and hand-picked tricky hands
-- Side pots, split pots (odd chip), chip conservation over hundreds of random hands
+- Side pots, split pots (odd chip), short all-ins, chip conservation over hundreds of random hands
 - The engine rejects every illegal action (wrong turn, under-minimum raise, over-stack bet...)
 - Bots only ever see their own cards, cannot break the rules, and stronger levels beat weaker ones
 - Blackjack splits, doubles, insurance and naturals; baccarat tableau; Three Card Poker payouts
