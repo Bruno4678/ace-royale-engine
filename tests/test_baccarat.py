@@ -73,9 +73,18 @@ def test_hands():
 def test_payouts():
     assert payout("player", 100, "player") == 200, "Player 1:1"
     assert payout("banker", 100, "banker") == 195, "Banker 1:1 minus 5%"
-    assert payout("banker", 5, "banker") == 10, \
-        "the commission on 5 rounds down to 0"
-    assert payout("banker", 30, "banker") == 59, "the commission on 30 is 1"
+    assert payout("banker", 5, "banker") == 9, \
+        "the commission on 5 rounds up to 1"
+    assert payout("banker", 30, "banker") == 58, "the commission on 30 is 2"
+    assert payout("banker", 20, "banker") == 39, "on 20 the 5% is exact"
+
+
+def test_no_banker_bet_favours_the_player():
+    # Exact outcome probabilities of an 8-deck shoe (see sim/baccarat_edge.py)
+    p_banker, p_player = 0.458597, 0.446247
+    favoured = [n for n in range(1, 2001)
+                if p_banker * (payout("banker", n, "banker") - n) / n - p_player > 0]
+    assert not favoured, favoured[:10]
     assert payout("tie", 10, "tie") == 90, "Tie 8:1"
     assert payout("player", 50, "tie") == 50, "a tie returns Player"
     assert payout("banker", 50, "tie") == 50, "a tie returns Banker"

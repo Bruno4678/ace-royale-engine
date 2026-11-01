@@ -8,9 +8,10 @@ drawn without replacement, and the engine's own `player_draws` /
 
 A Monte Carlo run with the engine's `play_hand` checks the enumeration.
 
-Finding: the engine rounds the 5% commission DOWN on whole chips, so on a
-Banker bet of 5 to 19 chips the commission is 0 and the bet favours the
-player. The edge is reported for several bet sizes.
+Finding: an earlier version of the engine rounded the 5% commission DOWN to
+whole chips, so a Banker bet of 5 to 19 chips paid no commission and favoured
+the player. The engine now rounds up; both roundings are reported here and
+plotted against the bet size.
 """
 
 import random
@@ -80,10 +81,15 @@ def outcome_probabilities(decks=DECKS):
     return probs
 
 
-def edges(probs, bet=100):
+def round_down(won):
+    """The old rule, kept for comparison."""
+    return won * BANKER_COMMISSION // 100
+
+
+def edges(probs, bet=100, rule=commission):
     """Expected return per chip bet on each box (negative = house edge)."""
     pp, pb, pt = probs["player"], probs["banker"], probs["tie"]
-    banker_win = (bet - commission(bet)) / bet
+    banker_win = (bet - rule(bet)) / bet
     return {
         # Player and Banker are returned on a tie
         "player": pp - pb,
@@ -110,28 +116,40 @@ def main(mc_hands=200_000):
     probs = outcome_probabilities()
     edge = edges(probs)
     mc = monte_carlo(mc_hands)
-    by_bet = {bet: edges(probs, bet)["banker"] for bet in (5, 10, 19, 20, 25, 50, 100, 1000)}
+    sizes = (5, 10, 19, 20, 25, 39, 50, 100, 1000)
+    by_bet = {bet: edges(probs, bet)["banker"] for bet in sizes}
+    by_bet_old = {bet: edges(probs, bet, round_down)["banker"] for bet in sizes}
+    favoured_old = [b for b in range(5, 2001) if edges(probs, b, round_down)["banker"] > 0]
+    favoured_now = [b for b in range(5, 2001) if edges(probs, b)["banker"] > 0]
 
     print("Baccarat (8 decks, exact):")
     for k in ("banker", "player", "tie"):
         print(f"  P({k}) = {probs[k]:.6f}   Monte Carlo {mc[k]:.4f}   "
               f"return per chip {pct(edge[k], 3)}")
-    print("  Banker return by bet size (commission rounded down):")
-    for bet, e in by_bet.items():
-        print(f"    bet {bet:>5}: {pct(e, 3)}")
+    print("  Banker return by bet size:        rounded up (now)   rounded down (before)")
+    for bet in sizes:
+        print(f"    bet {bet:>5}: {pct(by_bet[bet], 3):>28} {pct(by_bet_old[bet], 3):>18}")
+    print(f"  bet sizes 5-2000 that favour the player: {len(favoured_now)} now,"
+          f" {len(favoured_old)} before")
 
     fig, ax = figure("baccarat_banker_by_bet")
     bets = list(range(5, 101))
-    ax.plot(bets, [100 * edges(probs, b)["banker"] for b in bets], color="#1f6f4a")
+    ax.plot(bets, [100 * edges(probs, b, round_down)["banker"] for b in bets],
+            color="#b8860b", label="rounded down (before): 17 sizes favour the player")
+    ax.plot(bets, [100 * edges(probs, b)["banker"] for b in bets], color="#1f6f4a",
+            label="rounded up (now): none do")
     ax.axhline(0, color="#999", lw=0.8)
     ax.set_xlabel("Banker bet (chips)")
     ax.set_ylabel("Player return per chip (%)")
-    ax.set_title("Baccarat Banker bet: commission rounded down on whole chips")
+    ax.set_title("Baccarat Banker bet: 5% commission on whole chips")
+    ax.legend()
     save(fig)
 
     return save_json("baccarat", {
         "decks": DECKS, "probabilities": probs, "return_per_chip": edge,
-        "banker_return_by_bet": by_bet, "monte_carlo": {"hands": mc_hands, **mc},
+        "banker_return_by_bet": by_bet, "banker_return_by_bet_round_down": by_bet_old,
+        "bet_sizes_favouring_player": {"round_up": favoured_now, "round_down": favoured_old},
+        "monte_carlo": {"hands": mc_hands, **mc},
         "commission_pct": BANKER_COMMISSION, "tie_pays": TIE_PAYOUT,
     })
 

@@ -15,8 +15,8 @@ What you need to know about the game:
     fixed tables.
   - Points: the ace is worth 1, 2 to 9 their face value, the 10 and the face
     cards 0. The hand is worth the last digit of the sum (7 + 8 = 15 -> 5).
-  - Payouts: Player 1:1. Banker 1:1 minus a 5 % commission, rounded down
-    (winning with 100 pays 95). Tie 8:1. On a tie, whatever was bet on Player
+  - Payouts: Player 1:1. Banker 1:1 minus a 5 % commission, rounded up
+    to whole chips (winning with 100 pays 95). Tie 8:1. On a tie, whatever was bet on Player
     and on Banker is returned.
 """
 
@@ -168,8 +168,15 @@ def play_hand(draw):
 # --------------------------------------------------------------- payouts
 
 def commission(won: int) -> int:
-    """5 % of what is won on Banker, rounded down."""
-    return won * BANKER_COMMISSION // 100
+    """
+    5 % of what is won on Banker, rounded UP to whole chips.
+
+    Rounding down made Banker bets of 5 to 19 chips commission-free, and
+    those favoured the player (+1.24 %): betting small on Banker over and over
+    beat the house. Rounded up, no bet size favours the player; on multiples
+    of 20 the 5 % is exact.
+    """
+    return -(-won * BANKER_COMMISSION // 100)
 
 
 def payout(bet: str, amount: int, winner: str) -> int:

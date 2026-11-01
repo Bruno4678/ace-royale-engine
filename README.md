@@ -135,7 +135,7 @@ played. `python -m sim.test_sim` checks the simulators against the engine.
 |---|---|---|
 | Blackjack, basic strategy (6 decks, S17, DAS, 3:2) | **-0.42% ± 0.07%** | 10M simulated rounds, 95% CI |
 | Blackjack, same strategy, infinite deck | -0.57% | exact, dynamic programming |
-| Baccarat, Banker (bets of 20+) | **-1.06%** | exact enumeration of the 8-deck shoe |
+| Baccarat, Banker (multiples of 20) | **-1.06%** | exact enumeration of the 8-deck shoe |
 | Baccarat, Player | -1.24% | exact |
 | Baccarat, Tie (8:1) | -14.36% | exact |
 | Three Card Poker, Ante/Play (optimal: play Q-6-4+) | **-3.37%** per Ante | exact, all 22,100 x 18,424 hand pairs |
@@ -143,12 +143,13 @@ played. `python -m sim.test_sim` checks the simulators against the engine.
 
 Two findings from checking the engine's rules rather than textbook ones:
 
-- **Baccarat commission rounding is exploitable.** The 5% commission is
-  rounded down to whole chips, so a Banker bet of 5 to 19 chips pays no
-  commission at all and returns **+1.24%** to the player. Above that the edge
-  saw-tooths with every whole chip of commission (a bet of 39 still pays only
-  1 chip and returns +0.06%); in all, 17 bet sizes favour the player. A fix
-  is to round the commission up.
+- **Baccarat commission rounding was exploitable, and is now fixed.** The 5%
+  commission used to be rounded down to whole chips, so a Banker bet of 5 to
+  19 chips paid no commission at all and returned **+1.24%** to the player;
+  17 bet sizes favoured the player in all. The engine now rounds up, and no
+  bet size does. The price is paid by small odd bets (a 5-chip Banker bet
+  gives up 1 chip of its 5-chip win: -7.94%), while multiples of 20 keep the
+  exact -1.06%.
 - **Pair Plus pays a flush 4:1.** That is the generous paytable (-2.32%); the
   common 3:1 version is -7.28%. And unlike most casinos, folding here also
   loses the Pair Plus bet, which never matters with optimal play (you never
