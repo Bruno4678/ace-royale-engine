@@ -1,0 +1,99 @@
+{
+  "avg_hands_per_spin": 11.283333333333333,
+  "buy_in": 100,
+  "current_table": {
+    "chips_created_per_buy_in": 0.016666666666666607,
+    "expected_multiplier": 3.05,
+    "multiplier_sd": 7.021217843081071,
+    "return_to_players": 1.0166666666666666,
+    "share_of_prizes_from_top": 0.1639344262295082
+  },
+  "luck": {
+    "1000": {
+      "mean_net": 1662.595,
+      "median_net": 700.0,
+      "p05_net": -14900.0,
+      "p95_net": 22000.0,
+      "prob_in_profit": 0.5197,
+      "spins": 1000
+    },
+    "200": {
+      "mean_net": 319.67,
+      "median_net": -1200.0,
+      "p05_net": -5500.0,
+      "p95_net": 9800.0,
+      "prob_in_profit": 0.3825,
+      "spins": 200
+    },
+    "50": {
+      "mean_net": 68.04,
+      "median_net": -500.0,
+      "p05_net": -2200.0,
+      "p95_net": 7000.0,
+      "prob_in_profit": 0.3238,
+      "spins": 50
+    }
+  },
+  "sink_table": {
+    "chips_created_per_buy_in": -0.04833333333333334,
+    "expected_multiplier": 2.855,
+    "multiplier_sd": 6.292374353135706,
+    "return_to_players": 0.9516666666666667,
+    "share_of_prizes_from_top": 0.14010507880910683
+  },
+  "sink_weights": [
+    [
+      2,
+      770
+    ],
+    [
+      3,
+      160
+    ],
+    [
+      5,
+      45
+    ],
+    [
+      10,
+      21
+    ],
+    [
+      100,
+      4
+    ]
+  ],
+  "skill": {
+    "beginner": {
+      "places": [
+        59,
+        58,
+        123
+      ],
+      "roi_estimate": -0.25020833333333337,
+      "win_rate": 0.24583333333333332,
+      "win_rate_ci95": 0.0545897584238946
+    },
+    "casual": {
+      "places": [
+        83,
+        87,
+        70
+      ],
+      "roi_estimate": 0.05479166666666657,
+      "win_rate": 0.3458333333333333,
+      "win_rate_ci95": 0.060302421440711663
+    },
+    "expert": {
+      "places": [
+        98,
+        95,
+        47
+      ],
+      "roi_estimate": 0.24541666666666662,
+      "win_rate": 0.4083333333333333,
+      "win_rate_ci95": 0.062316505160628845
+    }
+  },
+  "skill_spins": 240
+}

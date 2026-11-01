@@ -6,7 +6,10 @@ computational core: rules, payouts, hand evaluation and the poker bots. The
 web app that runs on top of it is a separate, private project.
 
 Pure Python 3.9+, standard library only, no I/O: everything here just
-computes, so it can be tested exhaustively and simulated in bulk.
+computes, so it can be tested exhaustively and simulated in bulk. On top of it,
+`sim/` holds the quant work: exact house edges, a blackjack basic strategy
+derived by dynamic programming, Hi-Lo card counting with Kelly bet sizing over
+10 million simulated rounds, and the economics of Poker Spins.
 
 ## What's inside
 
@@ -120,12 +123,113 @@ print(play_spin(bots, buy_in=100))
 # {'multiplier': 2, 'prize_pool': 200, 'standings': ['P2', 'P0', 'P1'], ...}
 ```
 
+## Quant results
+
+Everything below is reproduced by `sim/` (about 3 minutes) and computed with the
+engine's own rule functions, so it measures the games exactly as they are
+played. `python -m sim.test_sim` checks the simulators against the engine.
+
+### House edge
+
+| Game and bet | Player return | How |
+|---|---|---|
+| Blackjack, basic strategy (6 decks, S17, DAS, 3:2) | **-0.42% ± 0.07%** | 10M simulated rounds, 95% CI |
+| Blackjack, same strategy, infinite deck | -0.57% | exact, dynamic programming |
+| Baccarat, Banker (bets of 20+) | **-1.06%** | exact enumeration of the 8-deck shoe |
+| Baccarat, Player | -1.24% | exact |
+| Baccarat, Tie (8:1) | -14.36% | exact |
+| Three Card Poker, Ante/Play (optimal: play Q-6-4+) | **-3.37%** per Ante | exact, all 22,100 x 18,424 hand pairs |
+| Three Card Poker, Pair Plus (1-4-6-30-40) | -2.32% | exact |
+
+Two findings from checking the engine's rules rather than textbook ones:
+
+- **Baccarat commission rounding is exploitable.** The 5% commission is
+  rounded down to whole chips, so a Banker bet of 5 to 19 chips pays no
+  commission at all and returns **+1.24%** to the player. Above that the edge
+  saw-tooths with every whole chip of commission (a bet of 39 still pays only
+  1 chip and returns +0.06%); in all, 17 bet sizes favour the player. A fix
+  is to round the commission up.
+- **Pair Plus pays a flush 4:1.** That is the generous paytable (-2.32%); the
+  common 3:1 version is -7.28%. And unlike most casinos, folding here also
+  loses the Pair Plus bet, which never matters with optimal play (you never
+  fold a pair or better).
+
+![Baccarat Banker return by bet size](docs/img/baccarat_banker_by_bet.png)
+
+### Blackjack basic strategy, derived
+
+`sim/blackjack_strategy.py` computes the dealer's final-total distribution for
+every upcard (given no dealer blackjack), then the value of standing, hitting
+(a memoised recursion over hand states), doubling and splitting, and keeps the
+best action in each cell. The result reproduces the published S17/DAS chart;
+the one borderline cell, A,2 vs 5, comes out as hit by 0.7% of a bet in an
+infinite deck, where 6-deck charts say double.
+
+```
+Hard     2   3   4   5   6   7   8   9   T   A     Soft     2   3   4   5   6   7   8   9   T   A
+   9     H   D   D   D   D   H   H   H   H   H      A,2     H   H   H   H   D   H   H   H   H   H
+  10     D   D   D   D   D   D   D   D   H   H      A,6     H   D   D   D   D   H   H   H   H   H
+  11     D   D   D   D   D   D   D   D   D   H      A,7     S  Ds  Ds  Ds  Ds   S   S   H   H   H
+  12     H   H   S   S   S   H   H   H   H   H     Pairs
+  16     S   S   S   S   S   H   H   H   H   H      9,9     P   P   P   P   P   S   P   P   S   S
+```
+
+(Excerpt; the full table is printed by the script and stored in
+`sim/results/blackjack_strategy.json`.)
+
+### Hi-Lo card counting and Kelly bet sizing
+
+10 million rounds in a 6-deck shoe cut at 75%, recording the Hi-Lo true count
+before each deal. The player's edge rises by about **0.50% per true-count
+point** and turns positive at a true count of about +0.3:
+
+![Player edge vs true count](docs/img/blackjack_edge_by_true_count.png)
+
+Kelly bets the fraction `edge / variance` of the bankroll when the count is
+favourable (variance per round: 1.33) and the table minimum otherwise.
+Bankroll of 1,000 minimum bets, table spread 1-100, 50,000 rounds, 2,000
+bootstrapped paths with the same rounds for every strategy:
+
+| Strategy | Median final bankroll | 5% / 95% | Risk of ruin | Paths that ever halved | Median max drawdown |
+|---|---|---|---|---|---|
+| Flat (always the minimum) | 788 | 354 / 1,195 | 0.1% | 24% | 37% |
+| Half Kelly | **1,231** | 284 / 3,733 | 1.0% | 42% | 47% |
+| Full Kelly | 1,520 | 0 / 11,825 | 6.2% | 91% | 71% |
+
+Full Kelly grows fastest in the median but almost every path loses half the
+bankroll along the way, and 6% go broke (bets are whole units and the counter
+must keep playing negative counts). Half Kelly keeps most of the growth for a
+fraction of the risk, which is why it is the practical choice. Caveat: the
+edge per count is estimated from the same data and rounds are resampled
+independently, so this is an idealised counter.
+
+![Bankroll paths](docs/img/kelly_bankroll.png)
+
+### Poker Spins economy
+
+- The example multiplier table has an expected multiplier of **3.05** on 3
+  buy-ins: return to players **101.7%**, so every Spin creates 1.7% of its
+  buy-ins in new chips. 16% of all prize money comes from the 0.5% x100.
+- A tuned table (x2 77%, x3 16%, x5 4.5%, x10 2.1%, x100 0.4%) returns 95.2%
+  and turns Spins into a 4.8% chip sink.
+- Luck dominates the short run: a player of average skill is in profit after
+  50 Spins only 32% of the time, though the mean is positive.
+- Skill still shows. In 240 Spins between bots, the expert won 40.8% (±6.2%),
+  the casual 34.6% and the beginner 24.6%, against a fair share of 33.3%.
+
+![Spins win rate by bot level](docs/img/spins_skill.png)
+
 ## Quick start
 
 ```bash
 git clone <this repo>
 cd ace-royale-engine
 python3 tests/run.py          # or: pip install -e ".[dev]" && pytest
+
+# simulations (need numpy and matplotlib)
+python3 -m venv .venv && .venv/bin/pip install -r sim/requirements.txt
+.venv/bin/python -m sim.test_sim
+.venv/bin/python -m sim.run_all
 ```
 
 A full Hold'em hand between two bots:
@@ -178,8 +282,7 @@ print(settle({"player": 0, "banker": 100, "tie": 0}, hand["winner"]))
 - Fast hand evaluator in Rust (bitmasks + lookup tables), benchmarked against `score_7`
 - Multi-table tournaments (blind schedule, payout structure)
 - Blackjack and baccarat side bets
-- Quant simulations: house edge of every game and side bet, blackjack basic strategy,
-  Hi-Lo card counting with Kelly bet sizing and risk of ruin, and the chip economy of Spins
+- House edge of the side bets, and Hi-Lo playing deviations (insurance, Illustrious 18)
 
 ## Author
 

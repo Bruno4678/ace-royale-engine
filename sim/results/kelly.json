@@ -1,0 +1,49 @@
+{
+  "breakeven_true_count": 0.2846888656144182,
+  "edge_intercept": -0.001426852352731419,
+  "edge_slope": 0.005011971050051336,
+  "max_bet": 100,
+  "min_bet": 1,
+  "paths": 2000,
+  "rounds": 50000,
+  "start_bankroll": 1000,
+  "strategies": {
+    "flat": {
+      "avg_bet": 1.0,
+      "final_median": 788.5,
+      "final_p05": 353.975,
+      "final_p95": 1194.5749999999998,
+      "growth_per_100_rounds": -0.00047524574515808796,
+      "mean_final": 787.13525,
+      "median_max_drawdown": 0.36817514568838894,
+      "p95_max_drawdown": 0.709428919736844,
+      "prob_halved": 0.237,
+      "risk_of_ruin": 0.0005
+    },
+    "full Kelly": {
+      "avg_bet": 3.23223,
+      "final_median": 1520.5,
+      "final_p05": 0.5,
+      "final_p95": 11824.575,
+      "growth_per_100_rounds": 0.0008380774830531298,
+      "mean_final": 3137.236,
+      "median_max_drawdown": 0.7065991490659788,
+      "p95_max_drawdown": 0.9995449267133002,
+      "prob_halved": 0.9105,
+      "risk_of_ruin": 0.0615
+    },
+    "half Kelly": {
+      "avg_bet": 1.72713,
+      "final_median": 1231.25,
+      "final_p05": 284.475,
+      "final_p95": 3733.2999999999997,
+      "growth_per_100_rounds": 0.0004160597857807721,
+      "mean_final": 1543.24975,
+      "median_max_drawdown": 0.46788880238983477,
+      "p95_max_drawdown": 0.8155157983343896,
+      "prob_halved": 0.418,
+      "risk_of_ruin": 0.01
+    }
+  },
+  "variance": 1.3261258602142334
+}

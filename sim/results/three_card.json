@@ -1,0 +1,22 @@
+{
+  "ante_play_ev_per_ante": -0.033729809436049175,
+  "ante_play_ev_q64": -0.033729809436049175,
+  "category_probabilities": {
+    "Flush": 0.049592760180995475,
+    "High card": 0.7438914027149321,
+    "Pair": 0.16941176470588235,
+    "Straight": 0.03257918552036199,
+    "Straight flush": 0.0021719457013574662,
+    "Three of a kind": 0.002352941176470588
+  },
+  "pair_plus_ev": -0.023167420814479638,
+  "suit_classes": 1755,
+  "weakest_hand_ev": -0.9946265740338689,
+  "weakest_hand_score": [
+    0,
+    12,
+    6,
+    4
+  ],
+  "weakest_hand_to_play": "Queen high"
+}
