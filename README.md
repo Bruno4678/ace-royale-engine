@@ -15,7 +15,7 @@ computes, so it can be tested exhaustively and simulated in bulk.
 | `aceroyale.blackjack` | Hand values (soft/hard), naturals, dealer rule (stands on 17), splits, doubles, insurance, settlement |
 | `aceroyale.baccarat` | Punto banco with the full third-card tableau, 8-deck shoe, 5% banker commission, 8:1 tie |
 | `aceroyale.three_card` | Three Card Poker ranking (straight beats flush), dealer qualifies with queen high, Ante, Play, Pair Plus and Ante bonus |
-| `aceroyale.poker` | No-limit Texas Hold'em and Pot-Limit Omaha: hand evaluators, a single-hand engine with side pots, min-raise and short all-in rules, and Monte Carlo bots for both games |
+| `aceroyale.poker` | No-limit Texas Hold'em and Pot-Limit Omaha: hand evaluators, a single-hand engine with side pots, min-raise and short all-in rules, Monte Carlo bots for both games, and Spins (three-player sit & go with a random prize multiplier) |
 
 Every game uses the same card encoding: an int `XYY`, where `X` is the suit
 (1-4) and `YY` the rank (1 = ace ... 13 = king). `101` is an ace, `413` a king.
@@ -83,6 +83,43 @@ Hold'em, which is why Omaha is a game of closer equities. Each Omaha decision
 costs about 110 ms against 5 ms in Hold'em, which is what the planned Rust
 evaluator is for.
 
+## Poker Spins
+
+A three-player sit & go: each player buys in, starts with 500 chips, and the
+blinds rise every 6 hands (10/20 up to 300/600) until one player has every
+chip. Before the first hand a multiplier is drawn and the prize is
+`buy-in x multiplier`:
+
+| Multiplier | Probability | Prize split |
+|---|---|---|
+| x2 | 75% | winner takes all |
+| x3 | 15% | winner takes all |
+| x5 | 7% | winner takes all |
+| x10 | 2.5% | winner takes all |
+| x100 | 0.5% | 80% / 10% / 10% |
+
+The table is configurable. These example odds give an expected multiplier of
+3.05, so on average the three buy-ins (3x) pay back 3.05x: the format slightly
+creates chips (return to players 101.7%). Measuring and tuning that is what
+the planned Spins economy simulation is for.
+
+`SpinTournament` only adds the tournament around the hands: it deals each
+hand as a normal `Hand` (or `OmahaHand`), the caller drives it exactly like a
+cash hand, and `record()` updates stacks, eliminations and blinds. Blinds rise
+by hands rather than by time so the engine stays deterministic; a clock
+belongs to whatever runs the game live. Players busted in the same hand are
+ranked by the stack they started it with. `play_spin` runs a whole Spin
+between three bots; with 25 big blinds to start, a bot Spin lasts about 10
+hands on average.
+
+```python
+from aceroyale.poker import create_strategy, play_spin
+
+bots = [create_strategy(level) for level in ("beginner", "casual", "expert")]
+print(play_spin(bots, buy_in=100))
+# {'multiplier': 2, 'prize_pool': 200, 'standings': ['P2', 'P0', 'P1'], ...}
+```
+
 ## Quick start
 
 ```bash
@@ -125,12 +162,13 @@ print(settle({"player": 0, "banker": 100, "tie": 0}, hand["winner"]))
 
 ## Tests
 
-58 tests, about 45 seconds, all seeded so they are deterministic. Highlights:
+68 tests, about 50 seconds, all seeded so they are deterministic. Highlights:
 
 - Exact enumeration of every five-card hand against the known category counts
 - Fast evaluator vs. reference evaluator on random and hand-picked tricky hands
 - Side pots, split pots (odd chip), short all-ins, chip conservation over hundreds of random hands
 - Omaha: the exactly-two rule, pot-limit amounts, a rigged showdown that Hold'em rules would get wrong, bots playing legally
+- Spins: multiplier frequencies over 200k draws, prize splits that always add up, rising blinds, double eliminations, full bot Spins
 - The engine rejects every illegal action (wrong turn, under-minimum raise, over-stack bet...)
 - Bots only ever see their own cards, cannot break the rules, and stronger levels beat weaker ones
 - Blackjack splits, doubles, insurance and naturals; baccarat tableau; Three Card Poker payouts
@@ -138,7 +176,7 @@ print(settle({"player": 0, "banker": 100, "tie": 0}, hand["winner"]))
 ## Roadmap
 
 - Fast hand evaluator in Rust (bitmasks + lookup tables), benchmarked against `score_7`
-- Poker Spins (three-player sit & go with a random prize multiplier) and tournaments (blind schedule, payouts)
+- Multi-table tournaments (blind schedule, payout structure)
 - Blackjack and baccarat side bets
 - Quant simulations: house edge of every game and side bet, blackjack basic strategy,
   Hi-Lo card counting with Kelly bet sizing and risk of ruin, and the chip economy of Spins

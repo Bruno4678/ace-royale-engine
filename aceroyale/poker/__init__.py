@@ -1,4 +1,5 @@
-"""No-limit Texas Hold'em and Pot-Limit Omaha: evaluators, single-hand engines and bots.
+"""No-limit Texas Hold'em and Pot-Limit Omaha: evaluators, single-hand engines,
+bots and Spins (three-player sit & go with a prize multiplier).
 
 Typical loop::
 
@@ -25,6 +26,10 @@ from .bots import (
     Personality, PERSONALITIES, LEVEL_ORDER, BotView, BotStrategy,
     estimate_equity, create_strategy, view_for, available_names,
 )
+from .spins import (
+    MULTIPLIERS, BLIND_SCHEDULE, SpinTournament, play_spin, draw_multiplier,
+    expected_multiplier, return_to_players,
+)
 
 __all__ = [
     "STRAIGHT_FLUSH", "FOUR_OF_A_KIND", "FULL_HOUSE", "FLUSH", "STRAIGHT",
@@ -34,4 +39,6 @@ __all__ = [
     "Seat", "Hand", "OmahaHand",
     "Personality", "PERSONALITIES", "LEVEL_ORDER", "BotView", "BotStrategy",
     "estimate_equity", "create_strategy", "view_for", "available_names",
+    "MULTIPLIERS", "BLIND_SCHEDULE", "SpinTournament", "play_spin",
+    "draw_multiplier", "expected_multiplier", "return_to_players",
 ]
