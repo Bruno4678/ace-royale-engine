@@ -267,7 +267,7 @@ print(settle({"player": 0, "banker": 100, "tie": 0}, hand["winner"]))
 
 ## Tests
 
-68 tests, about 50 seconds, all seeded so they are deterministic. Highlights:
+69 tests, about 50 seconds, all seeded so they are deterministic. Highlights:
 
 - Exact enumeration of every five-card hand against the known category counts
 - Fast evaluator vs. reference evaluator on random and hand-picked tricky hands
