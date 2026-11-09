@@ -287,7 +287,7 @@ print(settle({"player": 0, "banker": 100, "tie": 0}, hand["winner"]))
 
 ## Author
 
-Built by **Bruno González**, with contributions from Pablo de la Fuente and
+Built by **Bruno González Sánchez**, with contributions from Pablo de la Fuente and
 Robert Cincea.
 
 ## License
