@@ -104,7 +104,7 @@ def test_banker_returns_reproduce_the_rounding_finding():
 def test_build_ships_an_importable_engine():
     with tempfile.TemporaryDirectory() as tmp:
         out = build.build(Path(tmp) / "site")
-        for name in build.PAGE_FILES + ("engine.zip", "results.json"):
+        for name in build.PAGE_FILES + ("engine.zip", "results.json", "assets/mark.svg", "assets/og.png"):
             assert (out / name).exists(), name
         data = json.loads((out / "results.json").read_text())
         assert set(data) == set(build.RESULTS)

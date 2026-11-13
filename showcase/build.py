@@ -2,8 +2,9 @@
 
     python3 showcase/build.py            # then: python3 -m http.server -d _site
 
-Copies the page, zips the `aceroyale` package and `bridge.py` so Pyodide can
-import them in the browser, and copies the simulation results the charts read.
+Copies the page and its assets, zips the `aceroyale` package and `bridge.py`
+so Pyodide can import them in the browser, and copies the simulation results
+the charts read.
 Standard library only, so the Pages workflow needs nothing but Python.
 """
 
@@ -28,6 +29,7 @@ def build(out=OUT):
 
     for name in PAGE_FILES:
         shutil.copy2(SHOWCASE / name, out / name)
+    shutil.copytree(SHOWCASE / "assets", out / "assets")
 
     with zipfile.ZipFile(out / "engine.zip", "w", zipfile.ZIP_DEFLATED) as z:
         for path in sorted((ROOT / "aceroyale").rglob("*.py")):

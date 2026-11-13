@@ -8,6 +8,41 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 30));
 let RESULTS = null;
 let bridge = null;          // the Python module, once Pyodide has loaded it
 
+// ------------------------------------------------------------------ chrome
+
+function setupChrome() {
+  const nav = $("nav");
+  const onScroll = () => nav.classList.toggle("scrolled", window.scrollY > 8);
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  // Fade sections in as they scroll into view.
+  const reveal = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) { e.target.classList.add("in"); reveal.unobserve(e.target); }
+    }
+  }, { rootMargin: "0px 0px -8% 0px" });
+  document.querySelectorAll(".reveal").forEach((el) => reveal.observe(el));
+
+  // Highlight the nav link of the section on screen.
+  const links = [...document.querySelectorAll(".links a")];
+  const spy = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) links.forEach((a) => a.classList.toggle("active", a.hash === "#" + e.target.id));
+    }
+  }, { rootMargin: "-45% 0px -50% 0px" });
+  document.querySelectorAll("section[id]").forEach((el) => spy.observe(el));
+
+  // A royal flush fanned out in the hero.
+  const fan = $("hero-fan");
+  [110, 111, 112, 113, 101].forEach((c, i) => {
+    const el = cardEl(c);
+    el.style.transform = `rotate(${(i - 2) * 11}deg)`;
+    el.style.animationDelay = `${0.1 + i * 0.08}s`;
+    fan.appendChild(el);
+  });
+}
+
 // --------------------------------------------------------------- engine
 
 function setStatus(kind, text) {
@@ -116,13 +151,11 @@ async function runEquity() {
     const r = py("equity", eq.hand, eq.board, opponents, samples);
     const ms = performance.now() - started;
     $("eq-value").textContent = pct(r.equity, 1);
+    const board = eq.board.length ? ` on ${eq.board.map(cardLabel).join(" ")}` : "";
     $("eq-detail").innerHTML =
-      `${eq.hand.map(cardLabel).join(" ")} vs ${opponents} random hand${opponents > 1 ? "s" : ""}` +
-      `<br>&plusmn;${pct(r.ci95, 2)} (95%) &middot; ${samples.toLocaleString("en-US")} samples in ${(ms / 1000).toFixed(2)}s`;
-    $("eq-bar").style.width = pct(r.equity, 2);
-    const fair = $("eq-fair");
-    fair.style.display = "block";
-    fair.style.left = `calc(${pct(1 / (opponents + 1), 2)} - 1px)`;
+      `<b>${eq.hand.map(cardLabel).join(" ")}</b>${board} vs ${opponents} random hand${opponents > 1 ? "s" : ""}` +
+      `<br><span class="mono">&plusmn;${pct(r.ci95, 2)} (95%) &middot; ${samples.toLocaleString("en-US")} samples &middot; ${(ms / 1000).toFixed(2)}s</span>`;
+    setGauge(r.equity, 1 / (opponents + 1));
 
     await tick();
     drawSpread(py("level_spread", eq.hand, eq.board, opponents, 40), r.equity);
@@ -133,20 +166,30 @@ async function runEquity() {
   updateEquityButton();
 }
 
+const RING = 2 * Math.PI * 52;   // circumference of the gauge circles
+
+function setGauge(equity, fair) {
+  $("eq-ring").style.strokeDasharray = `${equity * RING} ${RING}`;
+  const mark = $("eq-fair");
+  mark.style.strokeDasharray = `2.5 ${RING}`;
+  mark.style.strokeDashoffset = `${-(fair * RING - 1.25)}`;
+}
+
 function drawSpread(spread, reference) {
   const keys = Object.keys(spread);
   const colours = [PALETTE.grey, PALETTE.blue, PALETTE.green, PALETTE.gold];
   const datasets = keys.map((key, i) => ({
     label: `${spread[key].name} (${spread[key].samples} samples)`,
     data: spread[key].estimates.map((y) => ({ x: i + (Math.random() - 0.5) * 0.5, y: 100 * y })),
-    backgroundColor: colours[i] + "aa",
+    backgroundColor: colours[i] + "bb",
     pointRadius: 4,
+    pointHoverRadius: 6,
   }));
   datasets.push({
     type: "line",
     label: "precise estimate",
     data: [{ x: -0.5, y: 100 * reference }, { x: keys.length - 0.5, y: 100 * reference }],
-    borderColor: PALETTE.ink,
+    borderColor: PALETTE.text,
     borderDash: [5, 4],
     borderWidth: 1.5,
     pointRadius: 0,
@@ -170,28 +213,44 @@ function drawSpread(spread, reference) {
 const VERB = { fold: "folds", check: "checks", call: "calls", bet: "bets", raise: "raises to" };
 const MY_VERB = { fold: "fold", check: "check", call: "call", bet: "bet", raise: "raise to" };
 
+let shownCards = new Set();   // cards already on the table, so only new ones animate
+let shownHand = null;
+
 function renderTable(s) {
   $("table").classList.remove("hidden");
+  $("table-empty").classList.add("hidden");
+  $("play-start").textContent = "New match";
   const bot = s.bot_name;
   $("bot-name").textContent = bot;
+  $("bot-avatar").textContent = bot[0];
   $("bot-chips").textContent = s.chips[bot];
   $("my-chips").textContent = s.chips.You;
   $("bot-button").style.visibility = s.button === bot ? "visible" : "hidden";
   $("my-button").style.visibility = s.button === "You" ? "visible" : "hidden";
-  $("bot-bet").textContent = s.bets[bot] ? `bet ${s.bets[bot]}` : "";
-  $("my-bet").textContent = s.bets.You ? `bet ${s.bets.You}` : "";
-  $("pot").textContent = s.pot;
+  $("bot-bet").textContent = s.bets[bot] || "";
+  $("my-bet").textContent = s.bets.You || "";
+  // Once the hand is over the pot has been paid out: show what was won.
+  $("pot").textContent = s.finished ? s.result.pots.reduce((t, p) => t + p.amount, 0) : s.pot;
 
+  if (s.hand_number !== shownHand) { shownCards = new Set(); shownHand = s.hand_number; }
+  const seen = new Set();
+  const make = (c) => {
+    const key = typeof c === "number" ? c : null;
+    const el = cardEl(c, key !== null && !shownCards.has(key) ? "deal" : "");
+    if (key !== null) seen.add(key);
+    return el;
+  };
   const fill = (id, cards) => {
     const box = $(id);
     box.innerHTML = "";
-    cards.forEach((c) => box.appendChild(cardEl(c)));
+    cards.forEach((c) => box.appendChild(make(c)));
   };
   fill("bot-cards", s.bot_cards || ["back", "back"]);
   fill("my-cards", s.my_cards);
   const board = $("play-board");
   board.innerHTML = "";
-  for (let i = 0; i < 5; i++) board.appendChild(cardEl(s.board[i] ?? null));
+  for (let i = 0; i < 5; i++) board.appendChild(make(s.board[i] ?? null));
+  shownCards = new Set([...shownCards, ...seen]);
 
   $("outcome").textContent = s.finished ? outcomeText(s) : "";
   renderActions(s);
@@ -222,14 +281,14 @@ function renderActions(s) {
     return b;
   };
   if (s.finished) {
-    button("Next hand", "primary", () => playStep("match_next_hand"));
+    button("Next hand", "btn btn-gold", () => playStep("match_next_hand"));
     return;
   }
   if (!s.my_turn) return;
   const a = s.actions;
-  if (a.check) button("Check", "ghost", () => playStep("match_act", "check", 0));
-  if (a.call) button(`Call ${a.call.amount}`, "ghost", () => playStep("match_act", "call", 0));
-  if (a.fold && !a.check) button("Fold", "ghost", () => playStep("match_act", "fold", 0));
+  if (a.fold && !a.check) button("Fold", "btn btn-ghost btn-sm", () => playStep("match_act", "fold", 0));
+  if (a.check) button("Check", "btn btn-ghost btn-sm", () => playStep("match_act", "check", 0));
+  if (a.call) button(`Call ${a.call.amount}`, "btn btn-ghost btn-sm", () => playStep("match_act", "call", 0));
 
   const kind = a.raise ? "raise" : (a.bet ? "bet" : null);
   if (!kind) return;
@@ -242,23 +301,24 @@ function renderActions(s) {
   wrap.className = "raise";
   const input = document.createElement("input");
   input.type = "number";
-  input.min = min; input.max = max; input.value = min;
+  input.min = min; input.max = max;
+  input.value = clamp(s.bets.You + toCall + 0.5 * potAfterCall);
   const presets = [["½ pot", 0.5], ["Pot", 1]];
   presets.forEach(([label, f]) => {
     const b = document.createElement("button");
-    b.className = "ghost";
+    b.className = "btn btn-ghost btn-sm";
     b.textContent = label;
     b.onclick = () => (input.value = clamp(s.bets.You + toCall + f * potAfterCall));
     wrap.appendChild(b);
   });
   const allIn = document.createElement("button");
-  allIn.className = "ghost";
+  allIn.className = "btn btn-ghost btn-sm";
   allIn.textContent = "All-in";
   allIn.onclick = () => (input.value = max);
   wrap.appendChild(allIn);
   wrap.appendChild(input);
   const go = document.createElement("button");
-  go.className = "primary";
+  go.className = "btn btn-gold btn-sm";
   go.textContent = kind === "raise" ? "Raise to" : "Bet";
   go.onclick = () => playStep("match_act", kind, clamp(Number(input.value)));
   wrap.appendChild(go);
@@ -271,21 +331,23 @@ function renderLog(s) {
   for (const e of s.log) {
     const li = document.createElement("li");
     if (e.event === "deal") {
-      li.innerHTML = `<b>Hand #${e.hand}</b> &middot; ${e.button === "You" ? "you have" : e.button + " has"} the button` +
-        (e.reset ? " &middot; someone went broke, stacks reset to 1,000" : "");
+      li.className = "head";
+      li.innerHTML = `Hand #${e.hand} <span class="street">${e.button === "You" ? "you deal" : e.button + " deals"}</span>` +
+        (e.reset ? `<br><span class="street">someone went broke: stacks back to 1,000</span>` : "");
     } else {
       const amount = ["bet", "raise"].includes(e.action) ? ` ${e.amount}` : "";
       // The bot's equity would give its hand away, so it shows once the hand is over.
-      const thinks = s.finished && e.equity != null ? ` <span class="eq">thinks ${pct(e.equity, 0)}</span>` : "";
+      const thinks = s.finished && e.equity != null ? `<span class="eq" title="equity the bot estimated">${pct(e.equity, 0)}</span>` : "";
       const verb = (e.who === "You" ? MY_VERB : VERB)[e.action] || e.action;
-      li.innerHTML = `<b>${e.who}</b> ${verb}${amount} <span>(${e.street})</span>${thinks}`;
+      li.innerHTML = `${thinks}<b>${e.who}</b> ${verb}${amount}<span class="street">${e.street}</span>`;
     }
     ol.appendChild(li);
   }
   if (s.finished) {
     const li = document.createElement("li");
-    const hands = Object.entries(s.result.hands).map(([who, text]) => `${who}: ${text}`).join(" · ");
-    li.innerHTML = `<b>${outcomeText(s)}</b>${hands ? " &middot; " + hands : ""}`;
+    li.className = "end";
+    const hands = Object.entries(s.result.hands).map(([who, text]) => `${who}: ${text}`).join("<br>");
+    li.innerHTML = `${outcomeText(s)}${hands ? `<br><span class="street">${hands}</span>` : ""}`;
     ol.appendChild(li);
   }
   ol.scrollTop = ol.scrollHeight;
@@ -307,15 +369,20 @@ async function playStep(name, ...args) {
 function renderEdgeTable() {
   const bj = RESULTS.blackjack_shoe, bac = RESULTS.baccarat, tc = RESULTS.three_card;
   const rows = [
-    ["Blackjack, basic strategy", "6 decks, S17, DAS, 3:2 · 10M rounds", `${pct(bj.return)} ±${pct(bj.ci95)}`],
-    ["Baccarat, Banker", "exact, 8-deck shoe, bets in multiples of 20", pct(bac.return_per_chip.banker)],
-    ["Baccarat, Player", "exact enumeration", pct(bac.return_per_chip.player)],
-    ["Baccarat, Tie (8:1)", "exact enumeration", pct(bac.return_per_chip.tie)],
-    ["Three Card Poker, Ante/Play", "optimal play (Q-6-4 or better), exact", pct(tc.ante_play_ev_per_ante)],
-    ["Three Card Poker, Pair Plus", "1-4-6-30-40 paytable, exact", pct(tc.pair_plus_ev)],
+    ["Blackjack", "Basic strategy", bj.return, `&plusmn;${pct(bj.ci95)}`, "6 decks, S17, DAS, 3:2 \u00b7 10M rounds"],
+    ["Baccarat", "Banker", bac.return_per_chip.banker, "", "Exact, 8-deck shoe, multiples of 20"],
+    ["Baccarat", "Player", bac.return_per_chip.player, "", "Exact enumeration"],
+    ["Baccarat", "Tie (8:1)", bac.return_per_chip.tie, "", "Exact enumeration"],
+    ["Three Card Poker", "Ante / Play", tc.ante_play_ev_per_ante, "", "Optimal play: Q-6-4 or better \u00b7 exact"],
+    ["Three Card Poker", "Pair Plus", tc.pair_plus_ev, "", "1-4-6-30-40 paytable \u00b7 exact"],
   ];
-  $("edge-table").innerHTML = rows.map(([name, how, val]) =>
-    `<div class="edge-row"><div><div class="name">${name}</div><div class="how">${how}</div></div><div class="val">${val}</div></div>`
+  // Meter on a square-root scale, so -0.4% and -14% both stay readable.
+  const worst = Math.sqrt(Math.max(...rows.map((r) => -r[2])));
+  $("edge-table").innerHTML = rows.map(([game, bet, edge, extra, how]) =>
+    `<div class="edge-card"><span class="game">${game}</span><span class="bet">${bet}</span>` +
+    `<span class="val">${pct(edge)} <small>${extra}</small></span>` +
+    `<span class="meter"><i style="width:${(100 * Math.sqrt(-edge) / worst).toFixed(1)}%"></i></span>` +
+    `<span class="src">${how}</span></div>`
   ).join("");
 }
 
@@ -331,7 +398,7 @@ function drawBaccarat() {
       datasets: [
         { label: "rounded down (old rule)", data: baccaratRows.map((r) => 100 * r.down), borderColor: PALETTE.gold, pointRadius: 0, borderWidth: 2 },
         { label: "rounded up (engine)", data: baccaratRows.map((r) => 100 * r.up), borderColor: PALETTE.green, pointRadius: 0, borderWidth: 2 },
-        { label: "your bet", data: [], showLine: false, pointRadius: 6, pointBackgroundColor: PALETTE.ink, borderColor: PALETTE.ink },
+        { label: "your bet", data: [], showLine: false, pointRadius: 7, pointBackgroundColor: PALETTE.text, borderColor: PALETTE.green, borderWidth: 3 },
       ],
     },
     options: {
@@ -353,14 +420,14 @@ function drawBaccarat() {
 function updateBaccaratSlider() {
   const bet = Number($("bac-bet").value);
   $("bac-bet-value").textContent = bet;
-  if (!baccaratRows) {
-    $("bac-bet-result").textContent = "waiting for the engine…";
-    return;
-  }
+  if (!baccaratRows) return;
   const r = baccaratRows[bet - 5];
-  const el = $("bac-bet-result");
-  el.textContent = `old rule ${signedPct(r.down)} · engine ${signedPct(r.up)}`;
-  el.className = "pill " + (r.down > 0 ? "bad" : "good");
+  const show = (id, x) => {
+    $(id).textContent = signedPct(x);
+    $(id).className = x > 0 ? "pos" : "neg";
+  };
+  show("bac-old", r.down);
+  show("bac-new", r.up);
   const chart = Chart.getChart($("baccarat-chart"));
   if (chart) {
     const i = bet - 5;
@@ -399,6 +466,7 @@ function setupStrategy() {
     const b = document.createElement("button");
     b.textContent = name;
     b.dataset.kind = kind;
+    b.setAttribute("role", "tab");
     b.onclick = () => renderStrategy(kind);
     tabs.appendChild(b);
   }
@@ -562,7 +630,7 @@ function drawKelly(results, names, colours, rounds, paths) {
   results.forEach((r, i) => {
     datasets.push({ label: `${names[i]} 5%`, data: r.bands.map((b) => floor(b[0])), borderWidth: 0, pointRadius: 0, fill: false });
     datasets.push({ label: `${names[i]} 95%`, data: r.bands.map((b) => floor(b[2])), borderWidth: 0, pointRadius: 0,
-      fill: "-1", backgroundColor: colours[i] + "22" });
+      fill: "-1", backgroundColor: colours[i] + "16" });
     datasets.push({ label: names[i], data: r.bands.map((b) => floor(b[1])), borderColor: colours[i], borderWidth: 2.5, pointRadius: 0 });
   });
   drawChart($("kelly-chart"), {
@@ -592,13 +660,25 @@ function drawKelly(results, names, colours, rounds, paths) {
 // ---------------------------------------------------------------- start
 
 async function main() {
+  setupChrome();
   renderEquityPicker();
   $("eq-random").onclick = randomHand;
   $("eq-clear").onclick = () => { eq.hand = []; eq.board = []; renderEquityPicker(); };
   $("eq-run").onclick = runEquity;
-  $("play-start").onclick = () => playStep("start_match", $("play-level").value);
+  let level = "expert";
+  document.querySelectorAll("#levels button").forEach((b) => {
+    b.setAttribute("aria-checked", String(b.dataset.level === level));
+    b.onclick = () => {
+      level = b.dataset.level;
+      document.querySelectorAll("#levels button").forEach((x) => {
+        x.classList.toggle("active", x === b);
+        x.setAttribute("aria-checked", String(x === b));
+      });
+    };
+  });
+  $("play-start").onclick = () => { shownHand = null; playStep("start_match", level); };
   $("bac-bet").oninput = updateBaccaratSlider;
-  $("kelly-fraction").oninput = () => ($("kelly-fraction-value").textContent = $("kelly-fraction").value);
+  $("kelly-fraction").oninput = () => ($("kelly-fraction-value").textContent = `${Number($("kelly-fraction").value).toFixed(2)}\u00d7`);
   $("kelly-run").onclick = runKelly;
 
   RESULTS = await (await fetch("results.json")).json();

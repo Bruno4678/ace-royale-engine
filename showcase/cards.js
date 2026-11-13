@@ -6,24 +6,25 @@ const RANK_LABEL = { 1: "A", 10: "10", 11: "J", 12: "Q", 13: "K" };
 
 function cardSuit(card) { return Math.floor(card / 100); }
 function cardRank(card) { return card % 100; }
+function rankLabel(card) { return RANK_LABEL[cardRank(card)] || String(cardRank(card)); }
 
 function cardLabel(card) {
-  const r = cardRank(card);
-  return (RANK_LABEL[r] || String(r)) + SUIT_SYMBOL[cardSuit(card)];
+  return rankLabel(card) + SUIT_SYMBOL[cardSuit(card)];
 }
 
 // A card element. `card` null draws an empty slot, "back" a face-down card.
 function cardEl(card, extra = "") {
   const el = document.createElement("div");
-  el.className = "pcard " + extra;
+  el.className = ("pcard " + extra).trim();
   if (card === null || card === undefined) {
     el.classList.add("empty");
   } else if (card === "back") {
     el.classList.add("back");
   } else {
-    const r = cardRank(card), s = cardSuit(card);
+    const s = cardSuit(card);
     if (s === 3 || s === 4) el.classList.add("red");
-    el.innerHTML = `<span>${RANK_LABEL[r] || r}</span><span class="s">${SUIT_SYMBOL[s]}</span>`;
+    el.innerHTML = `<span class="corner">${rankLabel(card)}<small>${SUIT_SYMBOL[s]}</small></span>` +
+                   `<span class="pip">${SUIT_SYMBOL[s]}</span>`;
     el.dataset.card = card;
     el.title = cardLabel(card);
   }

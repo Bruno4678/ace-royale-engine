@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220" width="200" height="220">
+  <defs>
+    <mask id="ar-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="220">
+      <rect x="0" y="0" width="200" height="220" fill="#fff"/>
+      <polyline points="60,152 100,54 140,152" fill="none" stroke="#000" stroke-width="20" stroke-linejoin="miter"/>
+      <line x1="72" y1="120" x2="128" y2="120" stroke="#000" stroke-width="8"/>
+      <path fill="#000" d="M100 105 L115 120 L100 135 L85 120 Z"/>
+    </mask>
+  </defs>
+  <path mask="url(#ar-cut)" fill="#D9B26A" d="M100 8 C85 40 20 70 18 118 C16 152 42 178 72 176 C86 175 95 168 100 158 C105 168 114 175 128 176 C158 178 184 152 182 118 C180 70 115 40 100 8 Z"/>
+  <path fill="#D9B26A" d="M96 156 L104 156 L106 184 L116 194 L130 184 L132 198 L132 212 L68 212 L68 198 L70 184 L84 194 L94 184 Z"/>
+</svg>
