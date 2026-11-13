@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ace Royale Engine</title>
+  <meta name="description" content="A casino game engine in pure Python, running live in your browser: poker equity, bots you can play against, exact house edges and Kelly bet sizing.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#top"><span class="suits">&spades;&hearts;&diams;&clubs;</span> Ace Royale Engine</a>
+    <nav>
+      <a href="#equity">Equity</a>
+      <a href="#play">Play</a>
+      <a href="#edge">House edge</a>
+      <a href="#kelly">Kelly</a>
+      <a class="gh" href="https://github.com/Bruno4678/ace-royale-engine">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <p class="kicker">Open source &middot; MIT &middot; pure Python</p>
+      <h1>I built a casino game engine.<br><span class="gold">Then I used it to measure the house edge.</span></h1>
+      <p class="lead">Rules, payouts, hand evaluation and Monte Carlo poker bots for blackjack, baccarat,
+        Three Card Poker, Hold'em and Omaha. This page runs the real engine in your browser,
+        compiled to WebAssembly with Pyodide: every number below is computed live.</p>
+      <div id="engine-status" class="status loading"><span class="dot"></span><span class="text">Loading the Python engine&hellip;</span></div>
+      <div class="tiles">
+        <div class="tile"><b>10M</b><span>simulated blackjack rounds</span></div>
+        <div class="tile"><b>-0.42%</b><span>house edge with basic strategy</span></div>
+        <div class="tile"><b>+1.24%</b><span>a rounding bug that favoured the player</span></div>
+        <div class="tile"><b>76</b><span>deterministic tests, zero dependencies</span></div>
+      </div>
+    </section>
+
+    <section id="equity" class="panel">
+      <p class="kicker">Poker equity</p>
+      <h2>How often does your hand win?</h2>
+      <p class="lead">Pick two hole cards and, if you like, a board. The engine deals random hands to the
+        opponents, completes the board and counts how often you win: the same Monte Carlo the bots use.</p>
+
+      <div class="equity-grid">
+        <div>
+          <div class="slots">
+            <div class="slot-group"><span class="label">Your hand</span><div id="hand-slots" class="slot-row"></div></div>
+            <div class="slot-group"><span class="label">Board</span><div id="board-slots" class="slot-row"></div></div>
+          </div>
+          <div id="deck" class="deck" aria-label="Deck: click a card to add it"></div>
+          <div class="controls">
+            <label>Opponents <select id="eq-opponents">
+              <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+            </select></label>
+            <label>Samples <select id="eq-samples">
+              <option value="5000">5,000</option><option value="20000" selected>20,000</option><option value="50000">50,000</option>
+            </select></label>
+            <button id="eq-random" class="ghost">Random hand</button>
+            <button id="eq-clear" class="ghost">Clear</button>
+            <button id="eq-run" class="primary" disabled>Compute equity</button>
+          </div>
+        </div>
+        <div class="result-card">
+          <div class="big-number" id="eq-value">&ndash;</div>
+          <div class="sub" id="eq-detail">Pick two cards to start.</div>
+          <div class="bar"><div id="eq-bar"></div><span class="fair" id="eq-fair"></span></div>
+          <p class="note">Gold mark: your fair share (1 / players). Ties count as half a win.</p>
+        </div>
+      </div>
+
+      <div class="subpanel">
+        <h3>Why bot levels differ: the same estimate, 40 times per level</h3>
+        <p class="note">A Rookie estimates with 40 samples, a Shark with 650. Each dot is one estimate of the
+          hand above: few samples means a noisy view of its own hand, and noisy decisions.</p>
+        <div class="chart-box"><canvas id="spread-chart"></canvas></div>
+      </div>
+    </section>
+
+    <section id="play" class="panel">
+      <p class="kicker">Heads-up no-limit Hold'em</p>
+      <h2>Play against the bots</h2>
+      <p class="lead">Blinds 5/10, 1,000 chips each. After every hand you see the equity the bot believed it had
+        when it decided. The engine validates every move, yours and the bot's, with the same rules.</p>
+      <div class="controls">
+        <label>Opponent <select id="play-level">
+          <option value="beginner">Rookie (40 samples)</option>
+          <option value="casual">Casual (120)</option>
+          <option value="advanced">Sharp (320)</option>
+          <option value="expert" selected>Shark (650)</option>
+        </select></label>
+        <button id="play-start" class="primary" disabled>New match</button>
+      </div>
+      <div id="table" class="table hidden">
+        <div class="seat bot">
+          <div class="who"><span id="bot-name">Bot</span> <span class="chips" id="bot-chips"></span> <span class="btn-marker" id="bot-button">D</span></div>
+          <div class="cards" id="bot-cards"></div>
+          <div class="street-bet" id="bot-bet"></div>
+        </div>
+        <div class="felt">
+          <div class="board" id="play-board"></div>
+          <div class="pot">Pot <b id="pot"></b></div>
+          <div class="outcome" id="outcome"></div>
+        </div>
+        <div class="seat me">
+          <div class="street-bet" id="my-bet"></div>
+          <div class="cards" id="my-cards"></div>
+          <div class="who">You <span class="chips" id="my-chips"></span> <span class="btn-marker" id="my-button">D</span></div>
+        </div>
+        <div class="actions" id="actions"></div>
+        <ol class="log" id="log"></ol>
+      </div>
+    </section>
+
+    <section id="edge" class="panel">
+      <p class="kicker">House edge</p>
+      <h2>Computed exactly, not copied from a textbook</h2>
+      <p class="lead">Player return per unit bet, measured with the engine's own rule functions.</p>
+      <div id="edge-table" class="edge-table"></div>
+
+      <div class="subpanel">
+        <h3>The bug the numbers found</h3>
+        <p class="note">Baccarat charges 5% on Banker wins, in whole chips. Rounded down, Banker bets of 5 to 19
+          chips paid no commission and returned <b>+1.24%</b> to the player. The engine now rounds up.
+          Move the slider: the gold line is the old rule, the green one is the engine's.</p>
+        <div class="slider-row">
+          <label for="bac-bet">Banker bet: <b id="bac-bet-value">10</b> chips</label>
+          <input id="bac-bet" type="range" min="5" max="200" value="10">
+          <span id="bac-bet-result" class="pill"></span>
+        </div>
+        <div class="chart-box"><canvas id="baccarat-chart"></canvas></div>
+      </div>
+
+      <div class="subpanel">
+        <h3>Blackjack basic strategy, derived by dynamic programming</h3>
+        <p class="note">6 decks, dealer stands on soft 17, double after split, 3:2. Rows: your hand. Columns: the
+          dealer's upcard.</p>
+        <div class="strategy-tabs" id="strategy-tabs"></div>
+        <div id="strategy" class="strategy"></div>
+        <div class="legend" id="strategy-legend"></div>
+      </div>
+
+      <div class="subpanel">
+        <h3>Card counting: +0.50% edge per true count point</h3>
+        <p class="note">10 million rounds in a 6-deck shoe. Each point is the player's edge at one Hi-Lo true
+          count, with its 95% confidence interval.</p>
+        <div class="chart-box"><canvas id="hilo-chart"></canvas></div>
+      </div>
+    </section>
+
+    <section id="kelly" class="panel">
+      <p class="kicker">Bet sizing</p>
+      <h2>Kelly: grow fastest, or survive?</h2>
+      <p class="lead">A Hi-Lo counter with 1,000 table minimums bets the Kelly fraction <code>edge / variance</code>
+        of the bankroll when the count is favourable, and the minimum otherwise. Rounds are resampled from the
+        10 million simulated ones, and every strategy faces the same rounds.</p>
+      <div class="controls">
+        <label>Your Kelly fraction <input id="kelly-fraction" type="range" min="0.1" max="2" step="0.05" value="0.25"> <b id="kelly-fraction-value">0.25</b></label>
+        <label>Rounds <select id="kelly-rounds">
+          <option value="10000">10,000</option><option value="50000" selected>50,000</option><option value="100000">100,000</option>
+        </select></label>
+        <label>Paths <select id="kelly-paths">
+          <option value="200">200</option><option value="500" selected>500</option><option value="1000">1,000</option>
+        </select></label>
+        <button id="kelly-run" class="primary">Simulate</button>
+      </div>
+      <div class="chart-box tall"><canvas id="kelly-chart"></canvas></div>
+      <div id="kelly-table" class="kelly-table"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Built by <b>Bruno González</b>, with contributions from Pablo de la Fuente and Robert Cincea.
+      <a href="https://github.com/Bruno4678/ace-royale-engine">Source on GitHub</a> &middot; MIT licence.</p>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+  <script src="cards.js"></script>
+  <script src="charts.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

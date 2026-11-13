@@ -11,6 +11,11 @@ computes, so it can be tested exhaustively and simulated in bulk. On top of it,
 derived by dynamic programming, Hi-Lo card counting with Kelly bet sizing over
 10 million simulated rounds, and the economics of Poker Spins.
 
+**Live demo: [bruno4678.github.io/ace-royale-engine](https://bruno4678.github.io/ace-royale-engine/)**.
+The engine runs in your browser (Pyodide): a poker equity calculator, heads-up
+Hold'em against the bots, interactive house-edge charts and a Kelly bankroll
+simulator.
+
 ## What's inside
 
 | Package | What it does |
@@ -265,9 +270,27 @@ print(hand["player"], hand["banker"], hand["winner"])
 print(settle({"player": 0, "banker": 100, "tie": 0}, hand["winner"]))
 ```
 
+## Showcase page
+
+`showcase/` is the live demo: a static page that loads the engine into
+[Pyodide](https://pyodide.org) (CPython compiled to WebAssembly), so every
+equity, bot decision and baccarat return on it is computed by this package,
+not precomputed. `showcase/bridge.py` is the only glue: plain functions that
+take card ints and return JSON. The charts that need 10 million rounds read
+`sim/results/`, and the Kelly simulator resamples the recorded rounds in the
+browser, with the same rules as `sim/kelly.py`.
+
+```bash
+python3 showcase/build.py                 # writes _site/
+python3 -m http.server 8000 -d _site      # open http://localhost:8000
+```
+
+A GitHub Actions workflow runs the tests, builds `_site/` and publishes it on
+GitHub Pages on every push to `main`.
+
 ## Tests
 
-69 tests, about 50 seconds, all seeded so they are deterministic. Highlights:
+76 tests, about 55 seconds, all seeded so they are deterministic. Highlights:
 
 - Exact enumeration of every five-card hand against the known category counts
 - Fast evaluator vs. reference evaluator on random and hand-picked tricky hands
@@ -277,6 +300,7 @@ print(settle({"player": 0, "banker": 100, "tie": 0}, hand["winner"]))
 - The engine rejects every illegal action (wrong turn, under-minimum raise, over-stack bet...)
 - Bots only ever see their own cards, cannot break the rules, and stronger levels beat weaker ones
 - Blackjack splits, doubles, insurance and naturals; baccarat tableau; Three Card Poker payouts
+- Showcase bridge: equities match known values, the heads-up match conserves chips and hides the bot's cards, and the built `engine.zip` imports on its own
 
 ## Roadmap
 
