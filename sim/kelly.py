@@ -53,6 +53,18 @@ def bet_sizes(bankroll, tc, a, b, variance, kelly_fraction):
     return np.clip(stake, MIN_BET, MAX_BET)
 
 
+def round_table(tcs, nets):
+    """
+    How often each (true count, net result) pair came up, so the bankroll
+    paths can be resampled elsewhere (the showcase page does it in the
+    browser) without the 10 million recorded rounds.
+    """
+    pairs, counts = np.unique(np.stack([tcs.astype(float), nets.astype(float)]),
+                              axis=1, return_counts=True)
+    return {"tc": pairs[0].astype(int).tolist(), "net": pairs[1].tolist(),
+            "count": counts.tolist(), "rounds": int(len(nets))}
+
+
 def run_paths(tcs, nets, a, b, variance, seed=7):
     rng = np.random.default_rng(seed)
     strategies = {"flat": 0.0, "half Kelly": 0.5, "full Kelly": 1.0}
@@ -143,6 +155,7 @@ def main():
     ax.legend()
     save(fig)
 
+    save_json("kelly_rounds", round_table(tcs, nets))
     for r in results.values():
         r.pop("history")
     return save_json("kelly", {
