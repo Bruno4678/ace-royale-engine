@@ -291,21 +291,26 @@ function renderTable(s) {
   // Once the hand is over the pot has been paid out: show what was won.
   $("pot").textContent = s.finished ? s.result.pots.reduce((t, p) => t + p.amount, 0) : s.pot;
 
-  if (s.hand_number !== shownHand) { shownCards = new Set(); shownHand = s.hand_number; }
+  const newHand = s.hand_number !== shownHand;
+  if (newHand) { shownCards = new Set(); shownHand = s.hand_number; }
   const seen = new Set();
-  const make = (c) => {
+  let dealt = 0;                    // cards animated in this render, to stagger them
+  const make = (c, how = "deal") => {
     const key = typeof c === "number" ? c : null;
-    const el = cardEl(c, key !== null && !shownCards.has(key) ? "deal" : "");
+    const fresh = key !== null ? !shownCards.has(key) : (c === "back" && newHand);
+    const el = cardEl(c, fresh ? how : "");
+    if (fresh) el.style.setProperty("--i", dealt++);
     if (key !== null) seen.add(key);
     return el;
   };
-  const fill = (id, cards) => {
+  const fill = (id, cards, how) => {
     const box = $(id);
     box.innerHTML = "";
-    cards.forEach((c) => box.appendChild(make(c)));
+    cards.forEach((c) => box.appendChild(make(c, how)));
   };
-  fill("bot-cards", s.bot_cards || ["back", "back"]);
   fill("my-cards", s.my_cards);
+  // The bot's cards are dealt face down and turned over at showdown.
+  fill("bot-cards", s.bot_cards || ["back", "back"], s.bot_cards ? "flip" : "deal");
   const board = $("play-board");
   board.innerHTML = "";
   for (let i = 0; i < 5; i++) board.appendChild(make(s.board[i] ?? null));
