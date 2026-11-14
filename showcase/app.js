@@ -139,28 +139,48 @@ function randomHand() {
   renderEquityPicker();
 }
 
+// The next animation frame, or a short timeout when the tab is in the background
+// and the browser stops sending frames.
+const nextFrame = () => new Promise((resolve) => {
+  const timer = setTimeout(resolve, 100);
+  requestAnimationFrame(() => { clearTimeout(timer); resolve(); });
+});
+const EQ_CHUNK = 1000;        // samples per batch: small enough to keep every frame short
+
+// Runs the Monte Carlo in small batches, yielding a frame after each one, so the
+// gauge fills in live while the estimate converges instead of the page freezing.
 async function runEquity() {
   const opponents = Number($("eq-opponents").value);
   const samples = Number($("eq-samples").value);
+  const hand = eq.hand.slice(), board = eq.board.slice();
   $("eq-run").disabled = true;
-  $("eq-value").textContent = "…";
-  $("eq-detail").textContent = `Dealing ${samples.toLocaleString("en-US")} random boards…`;
-  await tick();
+  gauge.fair(1 / (opponents + 1));
+  gauge.set(0);
+  const label = `<b>${hand.map(cardLabel).join(" ")}</b>` +
+    (board.length ? ` on ${board.map(cardLabel).join(" ")}` : "") +
+    ` vs ${opponents} random hand${opponents > 1 ? "s" : ""}`;
   try {
     const started = performance.now();
-    const r = py("equity", eq.hand, eq.board, opponents, samples);
-    const ms = performance.now() - started;
-    $("eq-value").textContent = pct(r.equity, 1);
-    const board = eq.board.length ? ` on ${eq.board.map(cardLabel).join(" ")}` : "";
-    $("eq-detail").innerHTML =
-      `<b>${eq.hand.map(cardLabel).join(" ")}</b>${board} vs ${opponents} random hand${opponents > 1 ? "s" : ""}` +
-      `<br><span class="mono">&plusmn;${pct(r.ci95, 2)} (95%) &middot; ${samples.toLocaleString("en-US")} samples &middot; ${(ms / 1000).toFixed(2)}s</span>`;
-    setGauge(r.equity, 1 / (opponents + 1));
+    let done = 0, wins = 0;
+    while (done < samples) {
+      const n = Math.min(EQ_CHUNK, samples - done);
+      wins += py("equity", hand, board, opponents, n).equity * n;
+      done += n;
+      gauge.set(wins / done);
+      $("eq-detail").innerHTML = `${label}<br><span class="mono">${done.toLocaleString("en-US")} / ` +
+        `${samples.toLocaleString("en-US")} samples&hellip;</span>`;
+      await nextFrame();
+    }
+    const p = wins / samples;
+    const ci95 = 1.96 * Math.sqrt(Math.max(p * (1 - p), 1e-12) / samples);
+    const secs = (performance.now() - started) / 1000;
+    $("eq-detail").innerHTML = `${label}<br><span class="mono">&plusmn;${pct(ci95, 2)} (95%) &middot; ` +
+      `${samples.toLocaleString("en-US")} samples &middot; ${secs.toFixed(2)}s</span>`;
 
-    await tick();
-    drawSpread(py("level_spread", eq.hand, eq.board, opponents, 40), r.equity);
+    await gauge.settled();      // let the ring finish before the next heavy job
+    drawSpread(py("level_spread", hand, board, opponents, 40), p);
   } catch (err) {
-    $("eq-value").textContent = "–";
+    gauge.reset();
     $("eq-detail").textContent = err.message;
   }
   updateEquityButton();
@@ -168,12 +188,51 @@ async function runEquity() {
 
 const RING = 2 * Math.PI * 52;   // circumference of the gauge circles
 
-function setGauge(equity, fair) {
-  $("eq-ring").style.strokeDasharray = `${equity * RING} ${RING}`;
-  const mark = $("eq-fair");
-  mark.style.strokeDasharray = `2.5 ${RING}`;
-  mark.style.strokeDashoffset = `${-(fair * RING - 1.25)}`;
-}
+// The equity gauge: the ring and the number glide towards the latest value
+// together, one animation frame at a time.
+const gauge = (() => {
+  let shown = 0, target = 0, running = false, last = 0, waiters = [];
+  const TAU = 140;               // ms; smaller follows faster
+  const paint = () => {
+    $("eq-ring").style.strokeDasharray = `${shown * RING} ${RING}`;
+    $("eq-value").textContent = pct(shown, 1);
+  };
+  const step = (now) => {
+    const dt = Math.min(now - last, 64);
+    last = now;
+    shown += (target - shown) * (1 - Math.exp(-dt / TAU));
+    if (Math.abs(target - shown) < 0.0003) shown = target;
+    paint();
+    if (shown !== target) return requestAnimationFrame(step);
+    running = false;
+    waiters.splice(0).forEach((resolve) => resolve());
+  };
+  return {
+    set(value) {
+      target = Math.max(0, Math.min(1, value));
+      if (document.hidden) { shown = target; paint(); return; }   // no frames in a background tab
+      if (running) return;
+      running = true;
+      last = performance.now();
+      requestAnimationFrame(step);
+    },
+    settled() {         // resolves when the ring stops, or after 1.5s at most (background tab)
+      if (!running) return Promise.resolve();
+      return Promise.race([new Promise((resolve) => waiters.push(resolve)),
+                           new Promise((resolve) => setTimeout(() => { shown = target; paint(); resolve(); }, 1500))]);
+    },
+    fair(share) {
+      const mark = $("eq-fair");
+      mark.style.strokeDasharray = `2.5 ${RING}`;
+      mark.style.strokeDashoffset = `${-(share * RING - 1.25)}`;
+    },
+    reset() {
+      target = shown = 0;
+      $("eq-ring").style.strokeDasharray = `0 ${RING}`;
+      $("eq-value").textContent = "\u2013";
+    },
+  };
+})();
 
 function drawSpread(spread, reference) {
   const keys = Object.keys(spread);
